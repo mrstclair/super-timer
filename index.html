@@ -682,6 +682,12 @@
             arcade:  { wave: 'square',   notes: [330, 440, 554.37, 659.25, 880],     step: 0.06, dur: 0.2, vol: 0.15 }
         };
 
+        // Where this same file is hosted as a normal web page (e.g. GitHub Pages).
+        // When set, pressing Float inside a Google Sites embed opens this page in its
+        // own window, where Chrome allows a true always-on-top timer.
+        // Example: 'https://yourname.github.io/super-timer/'
+        const HOSTED_URL = '';
+
         const MAX_SECONDS = 180 * 60;
         const STORE_KEY = 'superTimer.settings.v1';
 
@@ -702,9 +708,23 @@
         const customMinutes = $('customMinutes');
         const customSeconds = $('customSeconds');
         const pinBanner = $('pinBanner');
+        // Cached references: these keep working after the widget moves into the
+        // floating window, where document.getElementById() can no longer find them.
+        const timeDisplay = $('timeDisplay');
+        const miniTimeDisplay = $('miniTimeDisplay');
+        const miniProgressFill = $('miniProgressFill');
+        const themeMascotCenter = $('themeMascotCenter');
+        const themeMascotHeader = $('themeMascotHeader');
+        const themeTitle = $('themeTitle');
+        const miniThemeIcon = $('miniThemeIcon');
+        const phIcon = $('phIcon');
+        const phText = $('phText');
+        const phHint = $('phHint');
+        const presetBtns = [...widget.querySelectorAll('.preset-btn')];
+        const floatBtns = [...widget.querySelectorAll('.floatPiPBtn')];
         const PIP_SUPPORTED = 'documentPictureInPicture' in window;
 
-        const circumference = 2 * Math.PI * circle.r.baseVal.value;
+        const circumference = 2 * Math.PI * Number(circle.getAttribute('r'));
         circle.style.strokeDasharray = `${circumference} ${circumference}`;
         circle.style.strokeDashoffset = '0';
 
@@ -722,9 +742,20 @@
             collapsed: false
         };
 
+        // Launch state arrives either inside the cloned pop-up (bootState) or in the
+        // URL hash when the hosted copy is opened from an embed (#st=...).
         const boot = (() => {
-            try { return JSON.parse($('bootState').textContent || 'null'); }
-            catch (e) { return null; }
+            try {
+                const inline = JSON.parse($('bootState').textContent || 'null');
+                if (inline) return inline;
+            } catch (e) { /* ignore */ }
+            try {
+                const m = location.hash.match(/(?:^#|&)st=([^&]+)/);
+                if (!m) return null;
+                const s = JSON.parse(decodeURIComponent(m[1]));
+                history.replaceState(null, '', location.pathname + location.search); // tidy URL
+                return s;
+            } catch (e) { return null; }
         })();
         const IS_POPUP = !!(boot && boot.popup);
 
@@ -920,11 +951,11 @@
             const text = format(rem);
             const percent = state.total > 0 ? Math.min(100, (rem / state.total) * 100) : 0;
 
-            $('timeDisplay').textContent = text;
-            $('miniTimeDisplay').textContent = text;
+            timeDisplay.textContent = text;
+            miniTimeDisplay.textContent = text;
             circle.style.strokeDashoffset = String(circumference - (percent / 100) * circumference);
             circle.style.opacity = percent <= 0 ? '0' : '1'; // hide the round-cap dot at 0
-            $('miniProgressFill').style.width = `${percent}%`;
+            miniProgressFill.style.width = `${percent}%`;
 
             let status, label;
             if (state.running) { status = 'Counting...'; label = 'PAUSE'; }
@@ -938,9 +969,9 @@
             miniStartBtn.title = state.running ? 'Pause' : 'Start';
             miniStartBtn.setAttribute('aria-label', miniStartBtn.title);
 
-            $('themeMascotCenter').textContent = state.finished ? '🎉' : THEMES[state.theme].center;
+            themeMascotCenter.textContent = state.finished ? '🎉' : THEMES[state.theme].center;
 
-            document.querySelectorAll('.preset-btn').forEach((b) => {
+            presetBtns.forEach((b) => {
                 b.classList.toggle('active', Number(b.dataset.time) * 60 === state.total);
             });
 
@@ -964,10 +995,10 @@
             state.theme = name;
             const t = THEMES[name];
             bodies().forEach((b) => b.setAttribute('data-theme', name));
-            $('themeMascotHeader').textContent = t.mascot;
-            $('themeTitle').textContent = t.name;
-            $('miniThemeIcon').textContent = t.mascot;
-            $('phIcon').textContent = t.mascot;
+            themeMascotHeader.textContent = t.mascot;
+            themeTitle.textContent = t.name;
+            miniThemeIcon.textContent = t.mascot;
+            phIcon.textContent = t.mascot;
             themeSelect.value = name;
             render();
         }
@@ -989,13 +1020,13 @@
 
         function showPlaceholder(kind) {
             if (kind === 'pip') {
-                $('phText').textContent = 'The timer is pinned on top of your screen.';
-                $('phHint').textContent = IS_POPUP
+                phText.textContent = 'The timer is pinned on top of your screen.';
+                phHint.textContent = IS_POPUP
                     ? 'You can minimize this window, but keep it open - closing it closes the timer.'
                     : '';
             } else {
-                $('phText').textContent = 'The timer opened in a small pop-up window.';
-                $('phHint').textContent = 'In the pop-up, tap the yellow 📌 button once to keep it on top.';
+                phText.textContent = 'The timer opened in a small pop-up window.';
+                phHint.textContent = 'In the pop-up, tap the yellow 📌 button once to keep it on top.';
             }
             pinBanner.hidden = true;
             placeholder.hidden = false;
@@ -1040,7 +1071,13 @@
                 render();
             }, { once: true });
 
-            render();
+            win.document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') modal.classList.remove('open');
+            });
+
+            // From here on the PiP window is open; a display error must not
+            // trigger the pop-up fallback and leave two timers on screen.
+            try { render(); } catch (err) { console.error(err); }
         }
 
         // ---------- Floating: pop-up fallback (iframes / Google Sites embeds) ----------
@@ -1058,18 +1095,25 @@
         }
 
         function openPopup() {
-            const clone = document.documentElement.cloneNode(true);
-            clone.querySelector('#bootState').textContent = JSON.stringify({ popup: true, ...snapshot() });
-            clone.querySelector('#floatPlaceholder').hidden = true;
-            clone.querySelector('#settingsModal').classList.remove('open');
-            clone.querySelector('#widgetContainer').classList.remove('time-up');
-            clone.querySelector('#widgetContainer').hidden = false;
+            let url;
+            if (HOSTED_URL) {
+                // Hosted copy: a real top-level page, so "keep on top" works there.
+                url = HOSTED_URL.split('#')[0] + '#st=' +
+                    encodeURIComponent(JSON.stringify({ popup: true, ...snapshot() }));
+            } else {
+                const clone = document.documentElement.cloneNode(true);
+                clone.querySelector('#bootState').textContent = JSON.stringify({ popup: true, ...snapshot() });
+                clone.querySelector('#floatPlaceholder').hidden = true;
+                clone.querySelector('#settingsModal').classList.remove('open');
+                clone.querySelector('#widgetContainer').classList.remove('time-up');
+                clone.querySelector('#widgetContainer').hidden = false;
+                url = URL.createObjectURL(new Blob(['<!DOCTYPE html>\n' + clone.outerHTML], { type: 'text/html' }));
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+            }
 
-            const url = URL.createObjectURL(new Blob(['<!DOCTYPE html>\n' + clone.outerHTML], { type: 'text/html' }));
             const s = floatSize();
             const win = window.open(url, 'superTimerFloat',
                 `popup,width=${s.width + 20},height=${s.height + 20},top=80,left=80`);
-            setTimeout(() => URL.revokeObjectURL(url), 60000);
 
             if (!win) {
                 alert('Please allow pop-ups for this site so the floating timer can open.');
@@ -1156,7 +1200,7 @@
             toggleSelector.setAttribute('aria-expanded', String(open));
         });
 
-        document.querySelectorAll('.preset-btn').forEach((btn) => {
+        presetBtns.forEach((btn) => {
             btn.addEventListener('click', () => setDuration(Number(btn.dataset.time) * 60));
         });
 
@@ -1179,7 +1223,7 @@
         $('collapseBtn').addEventListener('click', () => setCollapsed(true));
         $('expandBtn').addEventListener('click', () => setCollapsed(false));
 
-        document.querySelectorAll('.floatPiPBtn').forEach((btn) => btn.addEventListener('click', floatTimer));
+        floatBtns.forEach((btn) => btn.addEventListener('click', floatTimer));
 
         $('dockBtn').addEventListener('click', () => {
             if (pipWin) pipWin.close();
@@ -1221,7 +1265,7 @@
             // The pop-up is a top-level window, so Chrome WILL allow a true always-on-top
             // window from here - it just needs one click (Chrome requires a user gesture).
             widget.classList.add('floating');
-            document.querySelectorAll('.floatPiPBtn').forEach((b) => {
+            floatBtns.forEach((b) => {
                 b.innerHTML = '📌 Pin';
                 b.title = 'Keep on top';
                 b.setAttribute('aria-label', 'Keep on top');
