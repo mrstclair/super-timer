@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Timer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --panel-bg: rgba(255, 255, 255, 0.25);
+            --panel-border: rgba(255, 255, 255, 0.4);
+            --text-color: #ffffff;
+            --accent-color: #ffdd59;
+            --btn-bg: #43e97b;
+            --btn-hover: #38d36a;
+            --ring-bg: rgba(255, 255, 255, 0.2);
+            --ring-fill: #ffdd59;
+        }
+
+        [data-theme="space"] {
+            --bg-gradient: linear-gradient(135deg, #1a1c29 0%, #0d1117 100%);
+            --accent-color: #ff6b6b;
+            --btn-bg: #4e54c8;
+            --btn-hover: #8f94fb;
+            --ring-fill: #ff6b6b;
+        }
+
+        [data-theme="unicorn"] {
+            --bg-gradient: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%);
+            --accent-color: #fff066;
+            --btn-bg: #a18cd1;
+            --btn-hover: #8670c4;
+            --ring-fill: #fff066;
+        }
+
+        [data-theme="lion"] {
+            --bg-gradient: linear-gradient(135deg, #f12711 0%, #f5af19 100%);
+            --accent-color: #ffffff;
+            --btn-bg: #ff9900;
+            --btn-hover: #e68a00;
+            --ring-fill: #ffffff;
+        }
+
+        [data-theme="ocean"] {
+            --bg-gradient: linear-gradient(135deg, #2b5876 0%, #4e4376 100%);
+            --accent-color: #00f2fe;
+            --btn-bg: #00c6ff;
+            --btn-hover: #0072ff;
+            --ring-fill: #00f2fe;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Fredoka', 'Comic Sans MS', system-ui, sans-serif;
+            user-select: none;
+        }
+
+        input { user-select: text; }
+
+        [hidden] { display: none !important; }
+
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible {
+            outline: 3px solid var(--accent-color);
+            outline-offset: 2px;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            padding: 10px;
+        }
+
+        body.pip-body {
+            padding: 6px;
+            overflow: auto;
+        }
+
+        .widget-container {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 2px solid var(--panel-border);
+            border-radius: 28px;
+            padding: 16px;
+            width: 340px;
+            max-width: 100%;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .widget-container.collapsed {
+            width: 310px;
+            padding: 10px 14px;
+        }
+
+        /* Floating (PiP / pop-up): fill the window and let the ring scale with it */
+        .widget-container.floating {
+            width: 100%;
+        }
+
+        .widget-container.floating .timer-display-container {
+            --ring: clamp(140px, min(calc(100vw - 72px), calc(100vh - 220px)), 460px);
+        }
+
+        .widget-container.time-up {
+            animation: celebrate 0.5s ease-in-out 4;
+        }
+
+        @keyframes celebrate {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.04); }
+        }
+
+        .mini-view-container {
+            display: none;
+            width: 100%;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .full-view-container {
+            display: flex;
+            width: 100%;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .widget-container.collapsed .full-view-container { display: none; }
+        .widget-container.collapsed .mini-view-container { display: flex; }
+
+        .mini-view {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            gap: 6px;
+        }
+
+        .mini-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mini-icon {
+            font-size: 22px;
+            animation: bounce 2s infinite;
+        }
+
+        .mini-time {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mini-right {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .mini-progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--ring-bg);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .mini-progress-fill {
+            height: 100%;
+            background: var(--ring-fill);
+            width: 100%;
+            transition: width 0.25s linear;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 12px;
+            background: rgba(0, 0, 0, 0.15);
+            padding: 8px 12px;
+            border-radius: 16px;
+        }
+
+        .title-area {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .controls-top {
+            display: flex;
+            gap: 6px;
+        }
+
+        .icon-btn {
+            background: rgba(255, 255, 255, 0.25);
+            border: none;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(1.05);
+        }
+
+        .circle-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            padding: 0;
+        }
+
+        .timer-display-container {
+            --ring: 210px;
+            position: relative;
+            width: var(--ring);
+            height: var(--ring);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 4px 0;
+        }
+
+        .progress-ring {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        .progress-ring__background {
+            stroke: var(--ring-bg);
+        }
+
+        .progress-ring__circle {
+            stroke: var(--ring-fill);
+            transition: stroke-dashoffset 0.25s linear, opacity 0.2s;
+        }
+
+        .timer-center-content {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            width: 100%;
+        }
+
+        .mascot-icon {
+            font-size: calc(var(--ring) * 0.133);
+            margin-bottom: 2px;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .time-text {
+            font-size: calc(var(--ring) * 0.162);
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .timer-status {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.85;
+            margin-bottom: 6px;
+        }
+
+        .center-start-btn {
+            background: var(--btn-bg);
+            border: none;
+            color: white;
+            padding: 6px 20px;
+            border-radius: 18px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .center-start-btn:hover {
+            background: var(--btn-hover);
+            transform: scale(1.05);
+        }
+
+        .time-selector-wrapper {
+            width: 100%;
+            margin-top: 10px;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 16px;
+            padding: 8px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .selector-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .selector-toggle {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            padding: 2px 4px;
+            border-radius: 8px;
+        }
+
+        .time-presets-grid {
+            display: none;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+            padding-top: 4px;
+        }
+
+        .time-presets-grid.open { display: grid; }
+
+        .preset-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 6px 0;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .preset-btn:hover,
+        .preset-btn.active {
+            background: rgba(255, 255, 255, 0.45);
+        }
+
+        .custom-time-row {
+            display: none;
+            gap: 6px;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        .custom-time-row.open { display: flex; }
+
+        .custom-input {
+            flex: 1;
+            min-width: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 10px;
+            padding: 5px 8px;
+            color: white;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .custom-input::placeholder { color: rgba(255, 255, 255, 0.7); }
+
+        .custom-input.invalid { border-color: #ff6b6b; }
+
+        .custom-set-btn {
+            background: var(--btn-bg);
+            border: none;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .float-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            text-align: center;
+            background: var(--panel-bg);
+            border: 2px solid var(--panel-border);
+            border-radius: 28px;
+            padding: 20px 24px;
+            max-width: 320px;
+        }
+
+        .float-placeholder .ph-icon {
+            font-size: 40px;
+            animation: bounce 2s infinite;
+        }
+
+        .float-placeholder small {
+            font-size: 12px;
+            opacity: 0.85;
+        }
+
+        /* Shown in the pop-up fallback: one tap turns it into a real always-on-top window */
+        .pin-banner {
+            position: fixed;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 900;
+            background: var(--accent-color);
+            color: #1a1c29;
+            border: none;
+            border-radius: 14px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+            animation: pinPulse 1.6s ease-in-out infinite;
+            white-space: nowrap;
+        }
+
+        @keyframes pinPulse {
+            0%, 100% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.05); }
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            padding: 10px;
+        }
+
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal {
+            background: #2d3748;
+            color: white;
+            width: 300px;
+            max-width: 100%;
+            max-height: 100%;
+            overflow: auto;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .modal h3 {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .setting-group label {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .setting-group select {
+            background: #4a5568;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .sound-option-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .preview-sound-btn {
+            background: #4299e1;
+            border: none;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .close-modal-btn {
+            background: #48bb78;
+            border: none;
+            color: white;
+            padding: 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+<body data-theme="space">
+
+    <!-- Shown in the main page while the timer is floating -->
+    <div class="float-placeholder" id="floatPlaceholder" hidden>
+        <div class="ph-icon" id="phIcon">🚀</div>
+        <p id="phText">The timer is floating on top of your screen.</p>
+        <small id="phHint"></small>
+        <button class="center-start-btn" id="dockBtn">Bring it back here</button>
+    </div>
+
+    <button class="pin-banner" id="pinBanner" hidden>📌 Tap to keep the timer on top</button>
+
+    <div class="widget-container" id="widgetContainer">
+        <!-- FULL VIEW MODE -->
+        <div class="full-view-container">
+            <div class="header">
+                <div class="title-area">
+                    <span id="themeMascotHeader">🚀</span>
+                    <span id="themeTitle">SUPER TIMER</span>
+                </div>
+                <div class="controls-top">
+                    <button class="icon-btn circle-btn" id="collapseBtn" title="Collapse to progress bar" aria-label="Collapse to progress bar">🔽</button>
+                    <button class="icon-btn floatPiPBtn" title="Float on top" aria-label="Float on top">🪟 Float</button>
+                    <button class="icon-btn circle-btn" id="settingsBtn" title="Settings" aria-label="Settings">⚙️</button>
+                </div>
+            </div>
+
+            <div class="timer-display-container">
+                <svg class="progress-ring" viewBox="0 0 210 210" aria-hidden="true">
+                    <circle class="progress-ring__background" stroke-width="12" fill="transparent" r="90" cx="105" cy="105"/>
+                    <circle class="progress-ring__circle" id="ringProgress" stroke-width="12" stroke-linecap="round" fill="transparent" r="90" cx="105" cy="105"/>
+                </svg>
+                <div class="timer-center-content">
+                    <div class="mascot-icon" id="themeMascotCenter">🛸</div>
+                    <div class="time-text" id="timeDisplay" role="timer" aria-live="off">05:00</div>
+                    <div class="timer-status" id="timerStatus" aria-live="polite">Ready</div>
+                    <button class="center-start-btn" id="startBtn">START</button>
+                </div>
+            </div>
+
+            <div class="time-selector-wrapper">
+                <div class="selector-header">
+                    <button class="selector-toggle" id="toggleSelector" aria-expanded="false" aria-controls="presetsGrid">⏱️ Select Time ▼</button>
+                    <button class="icon-btn circle-btn" id="resetBtn" title="Reset timer" aria-label="Reset timer" style="width: 26px; height: 26px; font-size: 11px;">🔄</button>
+                </div>
+                <div class="time-presets-grid" id="presetsGrid">
+                    <button class="preset-btn" data-time="1">1m</button>
+                    <button class="preset-btn" data-time="3">3m</button>
+                    <button class="preset-btn active" data-time="5">5m</button>
+                    <button class="preset-btn" data-time="10">10m</button>
+                    <button class="preset-btn" data-time="15">15m</button>
+                </div>
+                <div class="custom-time-row" id="customRow">
+                    <input type="number" id="customMinutes" class="custom-input" placeholder="Min" min="0" max="180" inputmode="numeric" aria-label="Minutes">
+                    <input type="number" id="customSeconds" class="custom-input" placeholder="Sec" min="0" max="59" inputmode="numeric" aria-label="Seconds">
+                    <button class="custom-set-btn" id="setCustomBtn">Set</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MINI COLLAPSED VIEW MODE -->
+        <div class="mini-view-container" id="miniContainer">
+            <div class="mini-view">
+                <div class="mini-left">
+                    <span class="mini-icon" id="miniThemeIcon">🚀</span>
+                    <span class="mini-time" id="miniTimeDisplay">05:00</span>
+                </div>
+                <div class="mini-right">
+                    <button class="icon-btn floatPiPBtn" style="padding: 6px 8px; font-size: 11px;" title="Float on top" aria-label="Float on top">🪟 Float</button>
+                    <button class="icon-btn circle-btn" id="miniStartBtn" style="width: 30px; height: 30px; font-size: 12px;" title="Start" aria-label="Start">▶</button>
+                    <button class="icon-btn circle-btn" id="expandBtn" style="width: 30px; height: 30px; font-size: 12px;" title="Expand" aria-label="Expand">🔼</button>
+                </div>
+            </div>
+            <div class="mini-progress-bar">
+                <div class="mini-progress-fill" id="miniProgressFill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="modal">
+            <h3 id="settingsTitle">Timer Settings</h3>
+            <div class="setting-group">
+                <label for="themeSelect">Theme &amp; Mascot</label>
+                <select id="themeSelect">
+                    <option value="space">🚀 Space Adventure</option>
+                    <option value="unicorn">🦄 Magical Unicorn</option>
+                    <option value="lion">🦁 Mighty Lion</option>
+                    <option value="ocean">🌊 Deep Ocean</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label for="soundSelect">Completion Sound</label>
+                <div class="sound-option-row">
+                    <select id="soundSelect" style="flex: 1;">
+                        <option value="chime">Gentle Chime</option>
+                        <option value="bell">School Bell</option>
+                        <option value="marimba">Happy Marimba</option>
+                        <option value="arcade">Arcade Success</option>
+                    </select>
+                    <button class="preview-sound-btn" id="previewSoundBtn">Test 🔊</button>
+                </div>
+            </div>
+            <button class="close-modal-btn" id="closeModalBtn">Save &amp; Close</button>
+        </div>
+    </div>
+
+    <!-- Filled in only when this page is cloned into the pop-up fallback window -->
+    <script id="bootState" type="application/json"></script>
+
+    <script>
+    (() => {
+        'use strict';
+
+        // ---------- Config ----------
+        const THEMES = {
+            space:   { mascot: '🚀', center: '🛸', name: 'SUPER TIMER' },
+            unicorn: { mascot: '🦄', center: '✨', name: 'UNICORN TIMER' },
+            lion:    { mascot: '🦁', center: '👑', name: 'LION TIMER' },
+            ocean:   { mascot: '🌊', center: '🐬', name: 'OCEAN TIMER' }
+        };
+
+        const SOUND_DEFS = {
+            chime:   { wave: 'sine',     notes: [523.25, 659.25, 783.99, 1046.5],    step: 0.12, dur: 0.6, vol: 0.2 },
+            bell:    { wave: 'triangle', notes: [880, 1760],                         step: 0.2,  dur: 0.8, vol: 0.3 },
+            marimba: { wave: 'sine',     notes: [440, 554.37, 659.25, 880],          step: 0.08, dur: 0.3, vol: 0.25 },
+            arcade:  { wave: 'square',   notes: [330, 440, 554.37, 659.25, 880],     step: 0.06, dur: 0.2, vol: 0.15 }
+        };
+
+        const MAX_SECONDS = 180 * 60;
+        const STORE_KEY = 'superTimer.settings.v1';
+
+        // ---------- Elements ----------
+        const $ = (id) => document.getElementById(id);
+        const widget = $('widgetContainer');
+        const modal = $('settingsModal');
+        const placeholder = $('floatPlaceholder');
+        const circle = $('ringProgress');
+        const startBtn = $('startBtn');
+        const miniStartBtn = $('miniStartBtn');
+        const timerStatus = $('timerStatus');
+        const themeSelect = $('themeSelect');
+        const soundSelect = $('soundSelect');
+        const presetsGrid = $('presetsGrid');
+        const customRow = $('customRow');
+        const toggleSelector = $('toggleSelector');
+        const customMinutes = $('customMinutes');
+        const customSeconds = $('customSeconds');
+        const pinBanner = $('pinBanner');
+        const PIP_SUPPORTED = 'documentPictureInPicture' in window;
+
+        const circumference = 2 * Math.PI * circle.r.baseVal.value;
+        circle.style.strokeDasharray = `${circumference} ${circumference}`;
+        circle.style.strokeDashoffset = '0';
+
+        // ---------- State ----------
+        // Time is tracked against a wall-clock end time, not by counting interval ticks,
+        // so it stays accurate when Chrome throttles timers in background tabs.
+        const state = {
+            total: 300,
+            remaining: 300,
+            running: false,
+            endTime: 0,
+            finished: false,
+            theme: 'space',
+            sound: 'chime',
+            collapsed: false
+        };
+
+        const boot = (() => {
+            try { return JSON.parse($('bootState').textContent || 'null'); }
+            catch (e) { return null; }
+        })();
+        const IS_POPUP = !!(boot && boot.popup);
+
+        let ticker = null;
+        let pipWin = null;
+        let popupWin = null;
+        let popupPoll = null;
+
+        // ---------- Persistence ----------
+        function loadSettings() {
+            try {
+                const s = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+                if (THEMES[s.theme]) state.theme = s.theme;
+                if (SOUND_DEFS[s.sound]) state.sound = s.sound;
+                if (Number.isInteger(s.total) && s.total >= 1 && s.total <= MAX_SECONDS) {
+                    state.total = s.total;
+                    state.remaining = s.total;
+                }
+            } catch (e) { /* storage blocked (e.g. sandboxed embed) - use defaults */ }
+        }
+
+        function saveSettings() {
+            try {
+                localStorage.setItem(STORE_KEY, JSON.stringify({
+                    theme: state.theme, sound: state.sound, total: state.total
+                }));
+            } catch (e) { /* ignore */ }
+        }
+
+        // ---------- Audio ----------
+        // One shared AudioContext, unlocked by a click, and the finish sound is scheduled
+        // on the audio clock so it fires on time even if page timers are throttled.
+        let audioCtx = null;
+        let scheduledBus = null;
+        let endSoundLive = false;
+        let scheduleToken = 0;
+
+        function getAudio() {
+            if (!audioCtx) {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return null;
+                try { audioCtx = new AC(); } catch (e) { return null; }
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+            return audioCtx;
+        }
+
+        function playSound(type, startAt, dest) {
+            const ctx = getAudio();
+            if (!ctx) return;
+            const def = SOUND_DEFS[type] || SOUND_DEFS.chime;
+            const t0 = Math.max(startAt ?? ctx.currentTime, ctx.currentTime);
+            const out = dest || ctx.destination;
+            def.notes.forEach((freq, i) => {
+                const t = t0 + i * def.step;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = def.wave;
+                osc.frequency.setValueAtTime(freq, t);
+                gain.gain.setValueAtTime(def.vol, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + def.dur);
+                osc.connect(gain);
+                gain.connect(out);
+                osc.start(t);
+                osc.stop(t + def.dur + 0.05);
+            });
+        }
+
+        function soundMuted() {
+            // The main page stays silent while the pop-up copy is the one on screen.
+            return !!(popupWin && !popupWin.closed);
+        }
+
+        function cancelEndSound() {
+            scheduleToken++;
+            endSoundLive = false;
+            if (scheduledBus) {
+                try { scheduledBus.disconnect(); } catch (e) { /* ignore */ }
+                scheduledBus = null;
+            }
+        }
+
+        function scheduleEndSound() {
+            cancelEndSound();
+            if (!state.running || soundMuted()) return;
+            const ctx = getAudio();
+            if (!ctx) return;
+            if (ctx.state !== 'running') {
+                const token = scheduleToken;
+                ctx.resume().then(() => {
+                    if (token === scheduleToken && state.running) scheduleEndSound();
+                }).catch(() => {});
+                return;
+            }
+            scheduledBus = ctx.createGain();
+            scheduledBus.connect(ctx.destination);
+            const secsLeft = Math.max(0, (state.endTime - Date.now()) / 1000);
+            playSound(state.sound, ctx.currentTime + secsLeft, scheduledBus);
+            endSoundLive = true;
+        }
+
+        function unlockAudio() {
+            const ctx = getAudio();
+            if (ctx && state.running && !endSoundLive) scheduleEndSound();
+        }
+
+        // ---------- Timer ----------
+        function currentRemaining() {
+            return state.running ? Math.max(0, (state.endTime - Date.now()) / 1000) : state.remaining;
+        }
+
+        function startTicker() {
+            if (!ticker) ticker = setInterval(tick, 250);
+        }
+
+        function stopTicker() {
+            clearInterval(ticker);
+            ticker = null;
+        }
+
+        function tick() {
+            if (!state.running) return;
+            if (Date.now() >= state.endTime) finish();
+            else render();
+        }
+
+        function start() {
+            if (state.total <= 0) return;
+            if (state.finished || state.remaining <= 0) state.remaining = state.total;
+            state.finished = false;
+            state.running = true;
+            state.endTime = Date.now() + state.remaining * 1000;
+            widget.classList.remove('time-up');
+            scheduleEndSound();
+            startTicker();
+            changed();
+        }
+
+        function pause() {
+            state.remaining = currentRemaining();
+            state.running = false;
+            stopTicker();
+            cancelEndSound();
+            changed();
+        }
+
+        function toggleTimer() {
+            if (state.running) pause();
+            else start();
+        }
+
+        function reset() {
+            state.running = false;
+            state.finished = false;
+            state.remaining = state.total;
+            stopTicker();
+            cancelEndSound();
+            widget.classList.remove('time-up');
+            changed();
+        }
+
+        function finish() {
+            state.running = false;
+            state.finished = true;
+            state.remaining = 0;
+            stopTicker();
+            if (!soundMuted() && !endSoundLive) playSound(state.sound); // scheduled sound didn't arm - play now
+            // Leave an armed sound playing; just forget the handle.
+            scheduledBus = null;
+            endSoundLive = false;
+            widget.classList.remove('time-up');
+            void widget.offsetWidth; // restart the animation
+            widget.classList.add('time-up');
+            changed();
+        }
+
+        function setDuration(seconds) {
+            state.total = Math.min(MAX_SECONDS, Math.max(1, Math.round(seconds)));
+            saveSettings();
+            reset();
+        }
+
+        // ---------- Rendering ----------
+        function format(seconds) {
+            const whole = Math.max(0, Math.ceil(seconds - 0.001));
+            const m = Math.floor(whole / 60);
+            const s = whole % 60;
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        function render() {
+            const rem = currentRemaining();
+            const text = format(rem);
+            const percent = state.total > 0 ? Math.min(100, (rem / state.total) * 100) : 0;
+
+            $('timeDisplay').textContent = text;
+            $('miniTimeDisplay').textContent = text;
+            circle.style.strokeDashoffset = String(circumference - (percent / 100) * circumference);
+            circle.style.opacity = percent <= 0 ? '0' : '1'; // hide the round-cap dot at 0
+            $('miniProgressFill').style.width = `${percent}%`;
+
+            let status, label;
+            if (state.running) { status = 'Counting...'; label = 'PAUSE'; }
+            else if (state.finished) { status = 'Time Up!'; label = 'START'; }
+            else if (state.remaining < state.total) { status = 'Paused'; label = 'RESUME'; }
+            else { status = 'Ready'; label = 'START'; }
+
+            if (timerStatus.textContent !== status) timerStatus.textContent = status;
+            startBtn.textContent = label;
+            miniStartBtn.textContent = state.running ? '⏸' : '▶';
+            miniStartBtn.title = state.running ? 'Pause' : 'Start';
+            miniStartBtn.setAttribute('aria-label', miniStartBtn.title);
+
+            $('themeMascotCenter').textContent = state.finished ? '🎉' : THEMES[state.theme].center;
+
+            document.querySelectorAll('.preset-btn').forEach((b) => {
+                b.classList.toggle('active', Number(b.dataset.time) * 60 === state.total);
+            });
+
+            const title = state.running ? `${text} - ${THEMES[state.theme].name}` : 'Super Timer';
+            document.title = title;
+            if (pipWin) pipWin.document.title = title;
+        }
+
+        function changed() {
+            render();
+            if (IS_POPUP) syncOpener();
+        }
+
+        // ---------- Theme / layout ----------
+        function bodies() {
+            return [document.body, pipWin && pipWin.document.body].filter(Boolean);
+        }
+
+        function applyTheme(name) {
+            if (!THEMES[name]) name = 'space';
+            state.theme = name;
+            const t = THEMES[name];
+            bodies().forEach((b) => b.setAttribute('data-theme', name));
+            $('themeMascotHeader').textContent = t.mascot;
+            $('themeTitle').textContent = t.name;
+            $('miniThemeIcon').textContent = t.mascot;
+            $('phIcon').textContent = t.mascot;
+            themeSelect.value = name;
+            render();
+        }
+
+        function floatSize() {
+            return state.collapsed ? { width: 340, height: 92 } : { width: 360, height: 480 };
+        }
+
+        function setCollapsed(collapsed) {
+            state.collapsed = collapsed;
+            widget.classList.toggle('collapsed', collapsed);
+            const win = pipWin || (IS_POPUP ? window : null);
+            if (win) {
+                const s = floatSize();
+                try { win.resizeBy(s.width - win.innerWidth, s.height - win.innerHeight); }
+                catch (e) { /* resizing not allowed here - user can drag the window edge */ }
+            }
+        }
+
+        function showPlaceholder(kind) {
+            if (kind === 'pip') {
+                $('phText').textContent = 'The timer is pinned on top of your screen.';
+                $('phHint').textContent = IS_POPUP
+                    ? 'You can minimize this window, but keep it open - closing it closes the timer.'
+                    : '';
+            } else {
+                $('phText').textContent = 'The timer opened in a small pop-up window.';
+                $('phHint').textContent = 'In the pop-up, tap the yellow 📌 button once to keep it on top.';
+            }
+            pinBanner.hidden = true;
+            placeholder.hidden = false;
+        }
+
+        // ---------- Floating: Document Picture-in-Picture ----------
+        function copyStyles(targetDoc) {
+            [...document.styleSheets].forEach((sheet) => {
+                try {
+                    const style = targetDoc.createElement('style');
+                    style.textContent = [...sheet.cssRules].map((r) => r.cssText).join('\n');
+                    targetDoc.head.appendChild(style);
+                } catch (e) {
+                    if (sheet.href) {
+                        const link = targetDoc.createElement('link');
+                        link.rel = 'stylesheet';
+                        link.href = sheet.href;
+                        targetDoc.head.appendChild(link);
+                    }
+                }
+            });
+        }
+
+        async function openPiP() {
+            const win = await window.documentPictureInPicture.requestWindow(floatSize());
+            copyStyles(win.document);
+            win.document.body.classList.add('pip-body');
+            win.document.body.setAttribute('data-theme', state.theme);
+            widget.classList.add('floating');
+            modal.classList.remove('open');
+            win.document.body.append(widget, modal); // settings come along so the gear still works
+            pipWin = win;
+            showPlaceholder('pip');
+
+            win.addEventListener('pagehide', () => {
+                widget.classList.remove('floating');
+                modal.classList.remove('open');
+                placeholder.after(widget, modal);
+                placeholder.hidden = true;
+                pinBanner.hidden = !(IS_POPUP && PIP_SUPPORTED);
+                pipWin = null;
+                render();
+            }, { once: true });
+
+            render();
+        }
+
+        // ---------- Floating: pop-up fallback (iframes / Google Sites embeds) ----------
+        function snapshot() {
+            return {
+                total: state.total,
+                remaining: currentRemaining(),
+                running: state.running,
+                endTime: state.endTime,
+                finished: state.finished,
+                theme: state.theme,
+                sound: state.sound,
+                collapsed: state.collapsed
+            };
+        }
+
+        function openPopup() {
+            const clone = document.documentElement.cloneNode(true);
+            clone.querySelector('#bootState').textContent = JSON.stringify({ popup: true, ...snapshot() });
+            clone.querySelector('#floatPlaceholder').hidden = true;
+            clone.querySelector('#settingsModal').classList.remove('open');
+            clone.querySelector('#widgetContainer').classList.remove('time-up');
+            clone.querySelector('#widgetContainer').hidden = false;
+
+            const url = URL.createObjectURL(new Blob(['<!DOCTYPE html>\n' + clone.outerHTML], { type: 'text/html' }));
+            const s = floatSize();
+            const win = window.open(url, 'superTimerFloat',
+                `popup,width=${s.width + 20},height=${s.height + 20},top=80,left=80`);
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+            if (!win) {
+                alert('Please allow pop-ups for this site so the floating timer can open.');
+                return;
+            }
+
+            popupWin = win;
+            cancelEndSound();          // only one copy should ring
+            widget.hidden = true;
+            showPlaceholder('popup');
+
+            popupPoll = setInterval(() => {
+                if (!popupWin || !popupWin.closed) return;
+                clearInterval(popupPoll);
+                popupPoll = null;
+                popupWin = null;
+                widget.hidden = false;
+                placeholder.hidden = true;
+                if (state.running) {
+                    if (Date.now() >= state.endTime) finish();
+                    else { scheduleEndSound(); startTicker(); }
+                }
+                render();
+            }, 500);
+        }
+
+        // Pop-up copy reports its state back so the main page stays in sync.
+        function syncOpener() {
+            try {
+                if (window.opener) window.opener.postMessage({ superTimer: true, state: snapshot() }, '*');
+            } catch (e) { /* opener gone */ }
+        }
+
+        window.addEventListener('message', (e) => {
+            if (!popupWin || e.source !== popupWin || !e.data || !e.data.superTimer) return;
+            const s = e.data.state;
+            state.total = s.total;
+            state.remaining = s.remaining;
+            state.running = s.running;
+            state.endTime = s.endTime;
+            state.finished = s.finished;
+            state.sound = SOUND_DEFS[s.sound] ? s.sound : state.sound;
+            soundSelect.value = state.sound;
+            if (state.running) startTicker(); else stopTicker();
+            applyTheme(s.theme);
+            saveSettings();
+        });
+
+        async function floatTimer() {
+            if (pipWin) { pipWin.close(); return; }                    // second click docks it
+            if (popupWin && !popupWin.closed) { popupWin.focus(); return; }
+            if (PIP_SUPPORTED) {
+                try { await openPiP(); return; }
+                catch (err) {
+                    // Expected inside an embed (e.g. Google Sites): Chrome only allows
+                    // always-on-top windows from a page opened in its own tab/window.
+                    console.warn('Picture-in-Picture unavailable here; using pop-up window.', err);
+                }
+            }
+            if (IS_POPUP) {
+                // Already the stand-alone copy - don't spawn another pop-up.
+                alert(PIP_SUPPORTED
+                    ? 'Chrome blocked "keep on top" here. Open the timer file directly in a Chrome tab, then press Float.'
+                    : 'This browser does not support "keep on top" windows. Use Google Chrome (version 116 or newer).');
+                return;
+            }
+            openPopup();
+        }
+
+        // ---------- Events ----------
+        startBtn.addEventListener('click', toggleTimer);
+        miniStartBtn.addEventListener('click', toggleTimer);
+        $('resetBtn').addEventListener('click', reset);
+
+        // Clicks anywhere on the widget/modal unlock audio - this works inside the PiP window too.
+        widget.addEventListener('pointerdown', unlockAudio);
+        modal.addEventListener('pointerdown', unlockAudio);
+
+        toggleSelector.addEventListener('click', () => {
+            const open = !presetsGrid.classList.contains('open');
+            presetsGrid.classList.toggle('open', open);
+            customRow.classList.toggle('open', open);
+            toggleSelector.textContent = open ? '⏱️ Select Time ▲' : '⏱️ Select Time ▼';
+            toggleSelector.setAttribute('aria-expanded', String(open));
+        });
+
+        document.querySelectorAll('.preset-btn').forEach((btn) => {
+            btn.addEventListener('click', () => setDuration(Number(btn.dataset.time) * 60));
+        });
+
+        function applyCustom() {
+            const m = parseInt(customMinutes.value, 10) || 0;
+            const s = parseInt(customSeconds.value, 10) || 0;
+            const valid = m >= 0 && s >= 0 && s <= 59 && (m * 60 + s) >= 1 && (m * 60 + s) <= MAX_SECONDS;
+            customMinutes.classList.toggle('invalid', !valid);
+            customSeconds.classList.toggle('invalid', !valid);
+            if (!valid) return;
+            setDuration(m * 60 + s);
+        }
+
+        $('setCustomBtn').addEventListener('click', applyCustom);
+        [customMinutes, customSeconds].forEach((inp) => {
+            inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCustom(); });
+            inp.addEventListener('input', () => inp.classList.remove('invalid'));
+        });
+
+        $('collapseBtn').addEventListener('click', () => setCollapsed(true));
+        $('expandBtn').addEventListener('click', () => setCollapsed(false));
+
+        document.querySelectorAll('.floatPiPBtn').forEach((btn) => btn.addEventListener('click', floatTimer));
+
+        $('dockBtn').addEventListener('click', () => {
+            if (pipWin) pipWin.close();
+            else if (popupWin && !popupWin.closed) popupWin.close();
+        });
+
+        $('settingsBtn').addEventListener('click', () => modal.classList.add('open'));
+        $('closeModalBtn').addEventListener('click', () => modal.classList.remove('open'));
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('open'); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') modal.classList.remove('open'); });
+
+        themeSelect.addEventListener('change', () => {
+            applyTheme(themeSelect.value);
+            saveSettings();
+            if (IS_POPUP) syncOpener();
+        });
+
+        soundSelect.addEventListener('change', () => {
+            state.sound = soundSelect.value;
+            saveSettings();
+            if (state.running) scheduleEndSound();   // re-arm with the new sound
+            if (IS_POPUP) syncOpener();
+        });
+
+        $('previewSoundBtn').addEventListener('click', () => playSound(soundSelect.value));
+
+        // ---------- Init ----------
+        loadSettings();
+
+        if (boot) {
+            Object.assign(state, {
+                total: boot.total, remaining: boot.remaining, running: boot.running,
+                endTime: boot.endTime, finished: boot.finished, sound: boot.sound,
+                theme: boot.theme, collapsed: boot.collapsed
+            });
+        }
+
+        if (IS_POPUP) {
+            // The pop-up is a top-level window, so Chrome WILL allow a true always-on-top
+            // window from here - it just needs one click (Chrome requires a user gesture).
+            widget.classList.add('floating');
+            document.querySelectorAll('.floatPiPBtn').forEach((b) => {
+                b.innerHTML = '📌 Pin';
+                b.title = 'Keep on top';
+                b.setAttribute('aria-label', 'Keep on top');
+            });
+            pinBanner.hidden = !PIP_SUPPORTED;
+            pinBanner.addEventListener('click', floatTimer);
+            window.addEventListener('pagehide', syncOpener);
+        }
+
+        soundSelect.value = state.sound;
+        applyTheme(state.theme);
+        setCollapsed(state.collapsed);
+
+        if (state.running) {
+            if (Date.now() >= state.endTime) finish();
+            else { startTicker(); scheduleEndSound(); }
+        }
+
+        render();
+    })();
+    </script>
+</body>
+</html>
